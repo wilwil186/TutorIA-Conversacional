@@ -5,11 +5,12 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./models:/app/models
-      - ./backend/.env:/app/.env
     environment:
       - PYTHONPATH=/app
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_MODEL=llama3.1:70b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -27,6 +28,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  models:
