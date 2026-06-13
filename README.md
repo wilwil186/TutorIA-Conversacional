@@ -1,209 +1,138 @@
-# 🗣️ Conversationally Desktop – Tutor de idiomas con IA para Debian
+# 🗣️ TutorIA Conversacional
 
-> Basado en **Conversationally**, el proyecto ganador del capstone de UC Berkeley: un tutor conversacional de idiomas con IA.  
-> Repositorio original: [team-langbot/conversationally](https://github.com/team-langbot/conversationally)
+Tutor de **inglés** estilo Duolingo para hispanohablantes. Conversas en inglés según tu
+nivel del **Marco Común Europeo (A1–C2)** y la app te corrige y te da consejos de gramática
+en español.
 
-**Conversationally Desktop** es una adaptación local del aclamado tutor de idiomas conversacional creado por un equipo de la Maestría en Ciencia de Datos de UC Berkeley. Esta versión reimplementa la arquitectura original (basada en AWS) para que puedas ejecutarla **directamente en tu máquina Debian** (o cualquier Linux con Docker), sin depender de la nube, manteniendo toda la potencia de los modelos de NLP.
+Es una **app de escritorio para Linux/Debian**. La IA puede ser:
 
----
+- 🟢 **Open source (gratis)** con **Ollama**, corriendo en tu propia máquina, o
+- 🔵 **Claude** u **OpenAI**, usando **tu propia cuenta y tu propia API key** (tú pagas el consumo).
 
-## 🎯 ¿Qué hace Conversationally?
-
-Conversationally te permite mantener conversaciones en español (u otros idiomas) con un bot inteligente que:
-
-- **Mantiene el tema** de la conversación para que no te desvíes del objetivo de aprendizaje.
-- **Detecta errores gramaticales** de concordancia de género y número (y potencialmente otros).
-- **Genera pistas (scaffolding)** cuando cometes un error, ayudándote a autocorregirte sin darte la respuesta directamente.
-
-Todo esto ocurre en una interfaz web sencilla, accesible desde tu navegador.
+La app nunca trae claves incrustadas: o usas Ollama (gratis) o pones tu key en la pantalla de Ajustes.
 
 ---
 
-## 🧠 Arquitectura del sistema
-
-Esta versión local replica la arquitectura original utilizando componentes open-source y ejecutándose en tu propio hardware.
-
-```mermaid
-graph TD
-    A[Frontend React] -->|HTTP| B[Backend FastAPI]
-    B --> C[Modelo 1: Clasificación de Contenido<br/>Sentence Transformers]
-    B --> D[Modelo 2: Corrección Gramatical GEC<br/>BETO fine-tuned]
-    B --> E[Modelo 3: Generación de Respuestas<br/>Mistral 7B]
-    B --> F[Gestión de Diálogo]
-    F --> G[Respuesta + Feedback]
-    G --> A
-```
-
-### Componentes principales:
-
-| Componente | Tecnología | Función |
-|------------|------------|---------|
-| **Frontend** | React (desde `langbot-ui`) | Interfaz de chat web |
-| **Backend** | FastAPI (Python) | Orquesta los modelos y gestiona la lógica de conversación |
-| **Modelo de Contenido** | Sentence Transformers (`paraphrase-multilingual-MiniLM-L12-v2`) | Calcula similitud coseno entre el mensaje del usuario y el tema esperado |
-| **Modelo GEC** | BETO (Spanish BERT) fine-tuned con COWS-L2H | Clasifica cada token en: correcto, error de género, error de número |
-| **Modelo Generador** | Mistral 7B Instruct (cuantizado) | Produce respuestas y pistas contextuales |
-
----
-
-## 📁 Estructura del repositorio
+## 🧩 Cómo funciona
 
 ```
-conversationally-desktop/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                 # Punto de entrada FastAPI
-│   │   ├── models/                  # Carga e inferencia de modelos
-│   │   │   ├── content.py            # Sentence Transformers
-│   │   │   ├── gec.py                # Modelo BETO para GEC
-│   │   │   └── generator.py          # Mistral 7B (vía transformers o llama.cpp)
-│   │   ├── routers/                  # Endpoints de la API
-│   │   │   └── chat.py
-│   │   └── schemas/                  # Pydantic models
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── .env.example
-├── frontend/
-│   ├── (código fuente de langbot-ui adaptado)
-│   ├── package.json
-│   ├── Dockerfile
-│   └── nginx.conf
-├── models/                            # (Opcional) Pesos descargados localmente
-│   ├── sentence-transformer/
-│   ├── beto-gec/
-│   └── mistral-7b-instruct-v0.2.Q4_K_M.gguf
-├── docker-compose.yml
-├── Makefile                           # Comandos útiles
-├── docs/                               # Documentación adicional
-│   ├── desafios.md                     # Explicación de retos técnicos
-│   └── creditos.md                      # Atribuciones al equipo original
-└── README.md
+App de escritorio (Flutter)  ──HTTP──►  Backend (FastAPI)  ──►  Ollama | Claude | OpenAI
+   localhost:8000                          /api/chat
 ```
+
+Todo corre en tu máquina: el backend, la app y (para el modo gratis) Ollama.
 
 ---
 
-## 🚀 Instalación y ejecución en Debian
+## ✅ Requisitos
 
-### Requisitos del sistema
+- Linux Debian/Ubuntu (probado en Debian 13).
+- **Python 3.10+**
+- **Flutter SDK** (para compilar la app de escritorio) — https://docs.flutter.dev/get-started/install/linux
+- Paquetes de escritorio para compilar en Linux:
+  ```bash
+  sudo apt install -y clang cmake ninja-build libgtk-3-dev pkg-config
+  ```
+- Para el modo **gratis**: **Ollama** instalado (https://ollama.com).
+- Para el modo **Claude/OpenAI**: una API key tuya (opcional).
 
-- **Sistema operativo**: Debian 11+ / Ubuntu 20.04+ (cualquier Linux con Docker)
-- **Memoria RAM**: Mínimo 8 GB (recomendado 16 GB para Mistral 7B)
-- **Espacio en disco**: 10 GB (para modelos y dependencias)
-- **Docker y Docker Compose** (opcional pero recomendado)
-- **Python 3.10+** y **Node.js 18+** (si se instala manualmente)
+---
 
-### Opción 1: Instalación con Docker (recomendada)
+## 🚀 Instalación paso a paso
 
+### 1. Clonar el proyecto
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/tu-usuario/conversationally-desktop.git
-cd conversationally-desktop
-
-# 2. Configurar variables de entorno (opcional)
-cp backend/.env.example backend/.env
-
-# 3. Descargar los modelos (automático al construir, pero puedes pre-descargarlos)
-make download-models
-
-# 4. Construir y levantar con Docker Compose
-docker-compose up --build
+git clone https://github.com/wilwil186/TutorIA-Conversacional.git
+cd TutorIA-Conversacional
 ```
 
-Una vez que los contenedores estén en ejecución, abre tu navegador en `http://localhost:3000` (o el puerto configurado).
+### 2. Elegir el motor de IA
 
-### Opción 2: Instalación manual (para desarrollo)
-
-#### Backend (FastAPI)
-
+**Opción gratis (Ollama):** instala Ollama y descarga un modelo (recomendado un modelo de
+instrucciones de buen tamaño):
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Descargar modelos (ajusta las rutas en .env)
-python scripts/download_models.py
-
-# Ejecutar servidor
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+ollama pull qwen2.5:7b      # ~4.7 GB
+ollama serve                # deja Ollama corriendo
 ```
 
-#### Frontend (React)
+**Opción Claude/OpenAI:** no necesitas instalar nada aquí; pondrás tu API key dentro de la
+app (pantalla de **Ajustes**). El consumo se cobra a tu cuenta.
 
+### 3. Levantar el backend
 ```bash
-cd frontend
-npm install
-npm start
+make install        # crea el entorno e instala dependencias del backend
+make setup          # crea backend/.env (puedes dejarlo como está para usar Ollama)
+make dev-backend    # backend en http://localhost:8000
+```
+Déjalo corriendo en esa terminal.
+
+> Por defecto el backend usa Ollama con el modelo `llama3.1`. Si descargaste otro modelo,
+> edita `OLLAMA_MODEL` en `backend/.env` (p. ej. `OLLAMA_MODEL=qwen2.5:7b`) o elige el modelo
+> en la pantalla de Ajustes de la app.
+
+### 4. Compilar y abrir la app de escritorio (en otra terminal)
+```bash
+make app-init       # prepara el proyecto Flutter (linux, web) la primera vez
+make app-linux      # compila el ejecutable
+./app/build/linux/x64/release/bundle/tutoria
+```
+O, para desarrollo, simplemente:
+```bash
+make dev-app        # flutter run -d linux
 ```
 
-Accede a `http://localhost:3000`.
+---
+
+## 📱 Uso
+
+1. Abre la app y elige tu **nivel** (A1–C2).
+2. Elige un **escenario** (restaurante, viajes, entrevista de trabajo…).
+3. Escribe en inglés. El tutor te responde en inglés a tu nivel y, debajo de tu mensaje,
+   te muestra las **correcciones** (lo que escribiste → lo correcto) y un **consejo** de gramática.
+4. En **Ajustes** puedes cambiar el motor de IA:
+   - **Open source (gratis)** → usa tu Ollama local.
+   - **Claude / OpenAI** → pega tu API key (se guarda solo en este equipo).
 
 ---
 
-## 🧪 Uso de la aplicación
+## 🧠 Modelos
 
-1. Abre la interfaz web.
-2. Selecciona un escenario de conversación (por ejemplo: "En el restaurante", "Presentarte", etc.).
-3. Comienza a escribir en español. El bot te responderá y, si cometes un error gramatical, te dará una pista.
-4. Puedes ver el análisis de "on-topic" y las correcciones token a token en la consola de desarrollador (o en futuras versiones en la UI).
-
----
-
-## 🧗 Desafíos y consideraciones técnicas
-
-Este proyecto no es un simple "copiar y pegar". Requiere entender y resolver varios retos:
-
-### 1. **Modelos pesados en local**
-   - Mistral 7B necesita al menos 8 GB de RAM en versión cuantizada (GGUF). Para CPU, se recomienda usar [llama.cpp](https://github.com/ggerganov/llama.cpp) con bindings en Python (`llama-cpp-python`). En el backend hemos incluido soporte para cargar modelos GGUF.
-   - El modelo GEC (BETO fine-tuned) no está publicado en Hugging Face. Debes entrenarlo tú mismo siguiendo los notebooks originales o contactar a los autores. Como alternativa, hemos incluido un script para fine-tunearlo con el dataset COWS-L2H (ver `backend/scripts/train_gec.py`).
-
-### 2. **Orquestación de tres modelos en tiempo real**
-   - La latencia total puede ser alta si no se optimiza. Se recomienda usar asyncio y cargar los modelos en memoria una sola vez.
-   - Implementamos caché de respuestas para escenarios comunes.
-
-### 3. **Mantenimiento del estado conversacional**
-   - El sistema debe recordar el contexto de la conversación. Usamos una lista de mensajes que se pasa al generador (similar a los `messages` de ChatGPT).
-
-### 4. **Idioma**
-   - El proyecto original se centra en español, pero los modelos de Sentence Transformers y Mistral son multilingües. Puedes adaptarlo a otros idiomas cambiando el dataset de GEC y ajustando prompts.
+| Motor | Coste | Dónde corre | Calidad de correcciones |
+|-------|-------|-------------|--------------------------|
+| Ollama (open source) | Gratis | Tu máquina | Buena con modelos 7B+; mejora con modelos más grandes |
+| Claude (tu cuenta) | Por uso | Nube de Anthropic | La más alta |
+| OpenAI (tu cuenta) | Por uso | Nube de OpenAI | Alta |
 
 ---
 
-## 🤝 Contribuciones
+## 🗂️ Estructura
 
-¿Quieres mejorar esta adaptación? ¡Genial! Las áreas donde más ayuda se necesita:
+```
+TutorIA-Conversacional/
+├── backend/            # FastAPI + capa de proveedores (Ollama/Claude/OpenAI)
+│   └── app/
+│       ├── providers/  # ollama_provider, anthropic_provider, openai_provider, base
+│       ├── routers/     # /api/chat, /api/scenarios, /health
+│       └── schemas/     # modelos Pydantic (TutorTurn, Correction, LLMConfig)
+├── app/                # app de escritorio Flutter (lib/ = código; linux/, web/)
+├── Makefile            # comandos (ver `make help`)
+└── docker-compose.yml  # backend en contenedor (opcional)
+```
 
-- **Modelo GEC**: Entrenar y subir una versión lista para usar del modelo BETO fine-tuned.
-- **Frontend**: Mejorar la UI para mostrar los errores token a token y las pistas de forma más amigable.
-- **Optimización**: Reducir el consumo de memoria y acelerar la inferencia.
-- **Documentación**: Traducir este README a inglés y crear tutoriales en vídeo.
-
-Por favor, abre un issue o un pull request. Revisa `docs/desafios.md` para más detalles técnicos.
-
----
-
-## 📜 Créditos y licencia
-
-Este proyecto es una adaptación del trabajo original de:
-
-- **Aastha Khanna**
-- **Isabel Chan**
-- **Jess Matthews**
-- **Mon Young**
-- **Ram Senthamarai**
-
-y su repositorio: [team-langbot/conversationally](https://github.com/team-langbot/conversationally)
-
-El código nuevo de esta adaptación está bajo licencia MIT (ver `LICENSE`). Los modelos y datasets utilizados tienen sus propias licencias (consulta la documentación de cada uno).
-
-**Agradecimiento especial** al equipo de UC Berkeley por compartir su increíble proyecto y hacer posible esta versión local.
+## 🛠️ Comandos útiles
+```bash
+make help          # lista todos los comandos
+make dev-backend   # backend en :8000
+make app-linux     # compila la app de escritorio
+make app-web       # compila la versión web (opcional)
+```
 
 ---
 
-## 📬 Contacto
+## ✨ Roadmap
+- Voz / pronunciación.
+- Test de nivel automático.
+- Guardar progreso y errores frecuentes.
 
-Si tienes preguntas o sugerencias, abre un issue en GitHub o contacta al mantenedor: [tu-email@ejemplo.com]
-
----
-
-**¡Disfruta aprendiendo idiomas con IA en tu propia máquina!** 🚀
+> El proyecto partió de una adaptación del tutor **Conversationally** (UC Berkeley) y fue
+> reescrito como tutor de inglés multi-proveedor.

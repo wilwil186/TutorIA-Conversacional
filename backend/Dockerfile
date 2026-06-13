@@ -14,6 +14,5 @@ COPY . .
 EXPOSE 8000
 
 ENV PYTHONPATH=/app
-ENV OLLAMA_HOST=http://host.docker.internal:11434
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
