@@ -1,4 +1,5 @@
 from app.schemas.chat import (
+    CEFRLevel,
     ChatMessage,
     ChatRequest,
     Correction,
@@ -7,8 +8,16 @@ from app.schemas.chat import (
     Scenario,
     TutorTurn,
 )
+from app.schemas.grammar import (
+    GrammarExample,
+    GrammarExercise,
+    GrammarLesson,
+    GrammarLessonRequest,
+    GrammarTopic,
+)
 
 __all__ = [
+    "CEFRLevel",
     "ChatMessage",
     "ChatRequest",
     "Correction",
@@ -16,4 +25,9 @@ __all__ = [
     "Provider",
     "Scenario",
     "TutorTurn",
+    "GrammarExample",
+    "GrammarExercise",
+    "GrammarLesson",
+    "GrammarLessonRequest",
+    "GrammarTopic",
 ]

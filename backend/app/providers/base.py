@@ -1,31 +1,43 @@
-"""Shared prompt and helpers used by every provider."""
+"""Shared prompt + the generic structured-output contract for providers.
+
+Every provider implements `structured(cfg, system, messages, output_model)` and
+returns a validated Pydantic instance. Both the tutor chat and the grammar
+lessons reuse this, so adding a new structured feature never touches the
+provider files.
+"""
+
+from typing import TypeVar
+
+from pydantic import BaseModel
 
 from app.schemas import ChatRequest
 
+T = TypeVar("T", bound=BaseModel)
+
 # Stable tutor instructions, shared across providers.
-SYSTEM_BASE = """You are a friendly, patient English tutor for Spanish-speaking students.
+SYSTEM_BASE = """You are a friendly, patient, encouraging English tutor for Spanish-speaking students.
 You help students practice English through realistic, scenario-based conversation.
 
-Your job, every turn:
+Every turn you must:
 1. Reply naturally in ENGLISH, continuing the conversation and keeping it on the
-   practice scenario. Adapt your vocabulary, grammar, and sentence length to the
-   student's CEFR level — simple and short for A1/A2, richer for B/C levels.
+   practice scenario. Adapt vocabulary, grammar, and length to the student's CEFR
+   level — simple and short for A1/A2, richer for B/C. ALWAYS end your reply with a
+   question so the student keeps talking.
 2. Detect mistakes in the student's LAST message (grammar, vocabulary, spelling,
-   word order, punctuation) and list each as a correction. If the message is
-   correct, return an empty corrections list.
-3. When there are mistakes, give ONE short grammar tip that nudges the student to
-   self-correct — a hint about the rule, NOT the full answer.
+   word order, punctuation). For each, explain the WHY, not just the fix. If the
+   message is correct, return an empty corrections list.
+3. When there are mistakes, give ONE short grammar tip that nudges self-correction.
+4. Offer 2-3 `suggestions`: short, ready-to-use example replies (in English, at the
+   student's level) that the student could send next, so they always know how to answer.
 
-Style rules:
-- Your `reply` is always in English at the target level.
-- Correction explanations and the grammar tip are in SPANISH (the student's
-  native language), so they actually understand the feedback.
-- Be encouraging. Never overwhelm: at most the few most important corrections.
-- Keep the student talking — end your reply with a question or prompt when natural."""
+Language rules:
+- `reply` and `suggestions` are in ENGLISH at the target level.
+- Correction `explanation` and `grammar_tip` are in SPANISH (the student's native
+  language) so the feedback is understood.
+- Be warm and encouraging; never overwhelm — at most the few most important corrections."""
 
 
 def build_system(request: ChatRequest) -> str:
-    """System prompt with the per-session level/scenario context appended."""
     ctx = f"\n\nCurrent student CEFR level: {request.level}."
     if request.scenario:
         ctx += f" Practice scenario: {request.scenario}. Keep the conversation on this topic."

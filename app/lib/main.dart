@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'config.dart';
+import 'screens/home_screen.dart';
 import 'screens/level_screen.dart';
-import 'screens/scenarios_screen.dart';
 import 'storage.dart';
 import 'theme.dart';
 
@@ -25,7 +25,7 @@ class TutorIAApp extends StatelessWidget {
       theme: buildTheme(),
       home: initialLevel == null
           ? const LevelScreen()
-          : ScenariosScreen(level: initialLevel!),
+          : HomeScreen(level: initialLevel!),
     );
   }
 }

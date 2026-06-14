@@ -1,18 +1,15 @@
 """Ollama provider — local, free, open-source models (the default).
 
-Runs wherever the backend runs (a PC with Ollama installed). Phones can't run
-the model locally, so a phone must reach a backend that has Ollama, or use the
-Claude/OpenAI providers instead.
+Runs wherever the backend runs (a machine with Ollama installed).
 """
 
 import os
 
 from fastapi import HTTPException
 from loguru import logger
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from app.providers.base import build_system, message_dicts
-from app.schemas import ChatRequest, LLMConfig, TutorTurn
+from app.schemas import LLMConfig
 
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
 DEFAULT_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -26,25 +23,22 @@ def _content(response) -> str:
     return response["message"]["content"]
 
 
-def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
+def structured(
+    cfg: LLMConfig, system: str, messages: list[dict], output_model: type[BaseModel]
+) -> BaseModel:
     import ollama
 
     host = cfg.base_url or DEFAULT_HOST
     model = cfg.model or DEFAULT_MODEL
-    messages = [{"role": "system", "content": build_system(request)}, *message_dicts(request)]
+    full = [{"role": "system", "content": system}, *messages]
 
     try:
         client = ollama.Client(host=host)
         response = client.chat(
             model=model,
-            messages=messages,
-            format=TutorTurn.model_json_schema(),  # structured output (Ollama >= 0.5)
+            messages=full,
+            format=output_model.model_json_schema(),  # structured output (Ollama >= 0.5)
             options={"temperature": 0.5},
-        )
-    except ConnectionError:
-        raise HTTPException(
-            status_code=503,
-            detail=f"No se pudo conectar a Ollama en {host}. ¿Está corriendo 'ollama serve'?",
         )
     except ollama.ResponseError as e:
         msg = str(e)
@@ -55,7 +49,7 @@ def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
             )
         logger.error(f"Ollama error: {msg}")
         raise HTTPException(status_code=502, detail="Error del modelo open source (Ollama).")
-    except Exception as e:  # connection refused surfaces as httpx errors, etc.
+    except Exception as e:  # connection refused surfaces as httpx/ConnectionError, etc.
         logger.error(f"Ollama connection error: {e}")
         raise HTTPException(
             status_code=503,
@@ -63,7 +57,7 @@ def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
         )
 
     try:
-        return TutorTurn.model_validate_json(_content(response))
+        return output_model.model_validate_json(_content(response))
     except ValidationError:
         logger.error("Ollama returned non-conforming JSON")
         raise HTTPException(

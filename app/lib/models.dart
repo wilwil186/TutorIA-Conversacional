@@ -48,6 +48,7 @@ class TutorTurn {
   final bool isOnTopic;
   final List<Correction> corrections;
   final String? grammarTip;
+  final List<String> suggestions;
   final String? estimatedLevel;
 
   const TutorTurn({
@@ -55,6 +56,7 @@ class TutorTurn {
     required this.isOnTopic,
     required this.corrections,
     this.grammarTip,
+    this.suggestions = const [],
     this.estimatedLevel,
   });
 
@@ -65,7 +67,92 @@ class TutorTurn {
             .map((c) => Correction.fromJson(c as Map<String, dynamic>))
             .toList(),
         grammarTip: json['grammar_tip'] as String?,
+        suggestions: (json['suggestions'] as List<dynamic>? ?? [])
+            .map((s) => s as String)
+            .toList(),
         estimatedLevel: json['estimated_level'] as String?,
+      );
+}
+
+// ----- Grammar -----
+
+class GrammarTopic {
+  final String id;
+  final String titleEs;
+  final String nameEn;
+  final String cefr;
+
+  const GrammarTopic({
+    required this.id,
+    required this.titleEs,
+    required this.nameEn,
+    required this.cefr,
+  });
+
+  factory GrammarTopic.fromJson(Map<String, dynamic> json) => GrammarTopic(
+        id: json['id'] as String,
+        titleEs: json['title_es'] as String,
+        nameEn: json['name_en'] as String,
+        cefr: json['cefr'] as String,
+      );
+}
+
+class GrammarExample {
+  final String english;
+  final String spanish;
+  const GrammarExample({required this.english, required this.spanish});
+
+  factory GrammarExample.fromJson(Map<String, dynamic> json) => GrammarExample(
+        english: json['english'] as String,
+        spanish: json['spanish'] as String,
+      );
+}
+
+class GrammarExercise {
+  final String prompt;
+  final String answer;
+  final String hint;
+  const GrammarExercise(
+      {required this.prompt, required this.answer, required this.hint});
+
+  factory GrammarExercise.fromJson(Map<String, dynamic> json) => GrammarExercise(
+        prompt: json['prompt'] as String,
+        answer: json['answer'] as String,
+        hint: json['hint'] as String,
+      );
+
+  /// Lenient check: case/space/punctuation-insensitive.
+  bool isCorrect(String input) => _norm(input) == _norm(answer);
+
+  static String _norm(String s) => s
+      .toLowerCase()
+      .trim()
+      .replaceAll(RegExp(r'[.,!?;:]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+class GrammarLesson {
+  final String title;
+  final String explanation;
+  final List<GrammarExample> examples;
+  final List<GrammarExercise> exercises;
+
+  const GrammarLesson({
+    required this.title,
+    required this.explanation,
+    required this.examples,
+    required this.exercises,
+  });
+
+  factory GrammarLesson.fromJson(Map<String, dynamic> json) => GrammarLesson(
+        title: json['title'] as String,
+        explanation: json['explanation'] as String,
+        examples: (json['examples'] as List<dynamic>? ?? [])
+            .map((e) => GrammarExample.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        exercises: (json['exercises'] as List<dynamic>? ?? [])
+            .map((e) => GrammarExercise.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }
 

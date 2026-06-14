@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../models.dart';
 import '../storage.dart';
+import '../tts.dart';
 import '../widgets/feedback_card.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -19,26 +20,59 @@ class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
   final List<ChatMessage> _messages = [];
+  List<String> _suggestions = [];
   bool _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    _fetchOpening(); // the tutor speaks first
+  }
+
+  @override
   void dispose() {
+    Tts.stop();
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
-  /// History sent to the backend: only role + text, no UI-only feedback.
   List<ChatMessage> get _history => _messages
       .map((m) => ChatMessage(sender: m.sender, text: m.text))
       .toList();
 
-  Future<void> _send() async {
-    final text = _controller.text.trim();
+  Future<void> _fetchOpening() async {
+    setState(() => _sending = true);
+    try {
+      final llm = await Storage.getLlmConfig();
+      final turn = await _api.chat(
+        history: const [],
+        level: widget.level,
+        scenario: widget.scenario.expectedTopic,
+        llm: llm,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.add(ChatMessage(sender: Sender.tutor, text: turn.reply));
+        _suggestions = turn.suggestions;
+        _sending = false;
+      });
+      Tts.speak(turn.reply);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      _showError(e);
+    }
+    _scrollToEnd();
+  }
+
+  Future<void> _send([String? preset]) async {
+    final text = (preset ?? _controller.text).trim();
     if (text.isEmpty || _sending) return;
     _controller.clear();
     setState(() {
       _messages.add(ChatMessage(sender: Sender.user, text: text));
+      _suggestions = [];
       _sending = true;
     });
     _scrollToEnd();
@@ -53,8 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       if (!mounted) return;
       setState(() {
-        // Attach feedback to the user message we just added.
-        final idx = _messages.length - 1;
+        final idx = _messages.length - 1; // attach feedback to the user message
         _messages[idx] = ChatMessage(
           sender: Sender.user,
           text: _messages[idx].text,
@@ -62,16 +95,22 @@ class _ChatScreenState extends State<ChatScreen> {
           grammarTip: turn.grammarTip,
         );
         _messages.add(ChatMessage(sender: Sender.tutor, text: turn.reply));
+        _suggestions = turn.suggestions;
         _sending = false;
       });
+      Tts.speak(turn.reply);
     } catch (e) {
       if (!mounted) return;
       setState(() => _sending = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
-      );
+      _showError(e);
     }
     _scrollToEnd();
+  }
+
+  void _showError(Object e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
+    );
   }
 
   void _scrollToEnd() {
@@ -93,16 +132,20 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _messages.isEmpty
-                ? _EmptyHint(scenario: widget.scenario)
-                : ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, i) => _MessageItem(message: _messages[i]),
-                  ),
+            child: ListView.builder(
+              controller: _scroll,
+              padding: const EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, i) => _MessageItem(message: _messages[i]),
+            ),
           ),
           if (_sending) const LinearProgressIndicator(minHeight: 2),
+          if (_suggestions.isNotEmpty && !_sending)
+            _Suggestions(suggestions: _suggestions, onPick: (s) {
+              _controller.text = s;
+              _controller.selection =
+                  TextSelection.collapsed(offset: s.length);
+            }),
           _Composer(controller: _controller, enabled: !_sending, onSend: _send),
         ],
       ),
@@ -110,29 +153,34 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class _EmptyHint extends StatelessWidget {
-  final Scenario scenario;
-  const _EmptyHint({required this.scenario});
+class _Suggestions extends StatelessWidget {
+  final List<String> suggestions;
+  final ValueChanged<String> onPick;
+  const _Suggestions({required this.suggestions, required this.onPick});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.chat_bubble_outline, size: 48),
-            const SizedBox(height: 12),
-            Text(scenario.description, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            const Text(
-              'Escribe en inglés para empezar. Te corregiré con cariño. 🙂',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54),
-            ),
-          ],
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('💬 Ideas para responder (toca una):',
+              style: TextStyle(fontSize: 12, color: Colors.black54)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final s in suggestions)
+                ActionChip(
+                  label: Text(s),
+                  onPressed: () => onPick(s),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -153,22 +201,41 @@ class _MessageItem extends StatelessWidget {
       crossAxisAlignment:
           isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.78),
-          decoration: BoxDecoration(
-            color: isUser ? scheme.primary : scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Text(
-            message.text,
-            style: TextStyle(
-              color: isUser ? Colors.white : Colors.black87,
-              fontSize: 16,
+        Row(
+          mainAxisAlignment:
+              isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!isUser && Tts.supported)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                iconSize: 20,
+                icon: const Icon(Icons.volume_up_rounded),
+                tooltip: 'Escuchar',
+                onPressed: () => Tts.speak(message.text),
+              ),
+            Flexible(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.74),
+                decoration: BoxDecoration(
+                  color:
+                      isUser ? scheme.primary : scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    color: isUser ? Colors.white : Colors.black87,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
         if (hasFeedback)
           FeedbackCard(
@@ -183,7 +250,7 @@ class _MessageItem extends StatelessWidget {
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
-  final VoidCallback onSend;
+  final void Function([String?]) onSend;
   const _Composer({
     required this.controller,
     required this.enabled,
@@ -220,7 +287,7 @@ class _Composer extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             FilledButton(
-              onPressed: enabled ? onSend : null,
+              onPressed: enabled ? () => onSend() : null,
               style: FilledButton.styleFrom(
                 shape: const CircleBorder(),
                 minimumSize: const Size(52, 52),

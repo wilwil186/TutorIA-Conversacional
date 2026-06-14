@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../storage.dart';
-import 'scenarios_screen.dart';
+import 'home_screen.dart';
 
 /// Onboarding: pick your CEFR level.
 class LevelScreen extends StatelessWidget {
@@ -21,7 +21,7 @@ class LevelScreen extends StatelessWidget {
     await Storage.setLevel(level);
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => ScenariosScreen(level: level)),
+      MaterialPageRoute(builder: (_) => HomeScreen(level: level)),
     );
   }
 

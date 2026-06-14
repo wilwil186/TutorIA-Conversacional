@@ -78,6 +78,10 @@ class TutorTurn(BaseModel):
         None,
         description="A short scaffolding hint IN SPANISH that nudges self-correction without giving the answer. Null if no mistakes.",
     )
+    suggestions: list[str] = Field(
+        default_factory=list,
+        description="2-3 short, ready-to-use example replies IN ENGLISH (at the student's level) that the student could send next.",
+    )
     estimated_level: Optional[CEFRLevel] = Field(
         None, description="CEFR level estimated from the student's last message."
     )

@@ -4,14 +4,16 @@ import os
 
 from fastapi import HTTPException
 from loguru import logger
+from pydantic import BaseModel
 
-from app.providers.base import build_system, message_dicts
-from app.schemas import ChatRequest, LLMConfig, TutorTurn
+from app.schemas import LLMConfig
 
 DEFAULT_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")
 
 
-def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
+def structured(
+    cfg: LLMConfig, system: str, messages: list[dict], output_model: type[BaseModel]
+) -> BaseModel:
     import anthropic
 
     api_key = cfg.api_key or os.getenv("ANTHROPIC_API_KEY")
@@ -27,10 +29,10 @@ def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
     try:
         response = client.messages.parse(
             model=model,
-            max_tokens=1024,
-            system=build_system(request),
-            messages=message_dicts(request),
-            output_format=TutorTurn,
+            max_tokens=1500,
+            system=system,
+            messages=messages,
+            output_format=output_model,
         )
     except anthropic.AuthenticationError:
         raise HTTPException(status_code=401, detail="API key de Claude inválida.")

@@ -66,6 +66,52 @@ class TutorApi {
     }
   }
 
+  Future<List<GrammarTopic>> getGrammarTopics(String level) async {
+    try {
+      final res = await _client
+          .get(_uri('/api/grammar/topics?level=$level'))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) {
+        throw TutorApiException('No se pudieron cargar los temas (${res.statusCode}).');
+      }
+      final list = jsonDecode(res.body) as List<dynamic>;
+      return list.map((e) => GrammarTopic.fromJson(e as Map<String, dynamic>)).toList();
+    } on TutorApiException {
+      rethrow;
+    } catch (_) {
+      throw TutorApiException('No se pudo conectar con el backend en ${Config.baseUrl}.');
+    }
+  }
+
+  Future<GrammarLesson> getGrammarLesson({
+    required String topicId,
+    required String level,
+    LlmConfig? llm,
+  }) async {
+    final body = jsonEncode({
+      'topic_id': topicId,
+      'level': level,
+      if (llm != null) 'llm': llm.toJson(),
+    });
+    try {
+      final res = await _client
+          .post(
+            _uri('/api/grammar/lesson'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 90));
+      if (res.statusCode == 200) {
+        return GrammarLesson.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+      }
+      throw TutorApiException(_errorDetail(res));
+    } on TutorApiException {
+      rethrow;
+    } catch (_) {
+      throw TutorApiException('No se pudo generar la lección en ${Config.baseUrl}.');
+    }
+  }
+
   String _errorDetail(http.Response res) {
     try {
       final json = jsonDecode(res.body) as Map<String, dynamic>;

@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import chat
+from app.routers import chat, grammar
 
 app = FastAPI(
     title="TutorIA Conversacional API",
@@ -27,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(grammar.router, prefix="/api", tags=["grammar"])
 
 
 @app.get("/")

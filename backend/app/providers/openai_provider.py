@@ -1,22 +1,23 @@
 """OpenAI provider — uses the user's own API key.
 
 `base_url` also makes this work with any OpenAI-compatible endpoint
-(Groq, OpenRouter, Together, a local server, ...), which is a handy way to
-reach hosted open-source models.
+(Groq, OpenRouter, Together, a local server, ...).
 """
 
 import os
 
 from fastapi import HTTPException
 from loguru import logger
+from pydantic import BaseModel
 
-from app.providers.base import build_system, message_dicts
-from app.schemas import ChatRequest, LLMConfig, TutorTurn
+from app.schemas import LLMConfig
 
 DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
-def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
+def structured(
+    cfg: LLMConfig, system: str, messages: list[dict], output_model: type[BaseModel]
+) -> BaseModel:
     import openai
 
     api_key = cfg.api_key or os.getenv("OPENAI_API_KEY")
@@ -31,14 +32,14 @@ def generate(request: ChatRequest, cfg: LLMConfig) -> TutorTurn:
         base_url=cfg.base_url or os.getenv("OPENAI_BASE_URL") or None,
     )
     model = cfg.model or DEFAULT_MODEL
-    messages = [{"role": "system", "content": build_system(request)}, *message_dicts(request)]
+    full = [{"role": "system", "content": system}, *messages]
 
     try:
         completion = client.beta.chat.completions.parse(
             model=model,
-            messages=messages,
-            response_format=TutorTurn,
-            max_tokens=1024,
+            messages=full,
+            response_format=output_model,
+            max_tokens=1500,
         )
     except openai.AuthenticationError:
         raise HTTPException(status_code=401, detail="API key de OpenAI inválida.")
